@@ -8,4 +8,6 @@ out
 .python_history
 .cache
 
+.DS_Store
+
 __pycache__
