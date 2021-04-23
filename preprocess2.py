@@ -26,7 +26,7 @@ def compute_embed(files, encoder):
     emb = emb.mean(axis=0)
     return emb
 
-def create_data(data, output_dir, phase, seq_len=None):
+def create_data(data, output_dir, phase, seq_len=None, is_trim=False):
     ret = []
 
     for k, v in tqdm.tqdm(data.items()):
@@ -37,15 +37,15 @@ def create_data(data, output_dir, phase, seq_len=None):
         np.save(emb_file, v['emb'])
 
         waves = []
+        world_path = os.path.join(speaker_dir, 'world.npz')
 
         for fname in v['files']:
             n = os.path.splitext(os.path.basename(fname))[0]
             target_dir = os.path.join(speaker_dir, n)
             os.makedirs(target_dir, exist_ok=True)
             x, _ = librosa.load(fname, sr=hp.sample_rate)
+            if is_trim: x, _ = librosa.effects.trim(x)
             waves.append(x.astype(np.float64) )
-
-            features_path = os.path.join(target_dir, 'features.npz')
             
             files = []
             if seq_len is not None:
@@ -62,16 +62,17 @@ def create_data(data, output_dir, phase, seq_len=None):
                 librosa.output.write_wav(filename, x, hp.sample_rate)
                 files.append(filename)
 
-            ret.append({'wav': files, 'emb': emb_file, 'features': features_path})
+            ret.append({'wav': files, 'emb': emb_file, 'world': world_path})
         
         f0s, timeaxes, sps, aps, coded_sps = world.world_encode_data(waves, hp.sample_rate, 5, 24)
         log_f0_mean, log_f0_std = world.logf0_statistics(f0s)
         coded_sps_transposed = world.transpose_in_list(coded_sps)
         coded_sps_norm, coded_sps_mean, coded_sps_std = world.coded_sps_normalization_fit_transform(coded_sps_transposed)
 
-        np.savez(features_path, log_f0_mean=log_f0_mean, log_f0_std=log_f0_std, coded_sps_mean=coded_sps_mean, coded_sps_std=coded_sps_std)
-
-        print(filename)
+        np.savez(world_path, log_f0_mean=log_f0_mean, 
+                             log_f0_std=log_f0_std,
+                             coded_sps_mean=coded_sps_mean, 
+                             coded_sps_std=coded_sps_std)
 
     return ret
             

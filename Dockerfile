@@ -19,7 +19,8 @@ RUN pip3 install librosa==0.7.2 \
                  pyworld \
                  matplotlib \
                  tqdm \
-                 resemblyzer
+                 resemblyzer \
+                 wavenet_vocoder
 
 
 # COPY requirements.txt requirements.txt
