@@ -2,6 +2,7 @@ VCTK-Corpus
 checkpoints
 checkpoint_step001000000_ema.pth
 data
+data2
 out
 
 .bash_history
