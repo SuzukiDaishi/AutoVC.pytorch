@@ -8,6 +8,7 @@ import numpy as np
 from hparams import hparams as hp
 from utils import world, dsp
 import pickle
+import time
 
 class AudiobookDataset(torch.utils.data.Dataset):
     def __init__(self, input_data, train=False):
@@ -87,8 +88,10 @@ if __name__ == '__main__':
                             collate_fn=train_collate,
                             batch_size=BATCH_SIZE, 
                             shuffle=True)
+        t = None
         for batch_idx, (m, e) in enumerate(train_loader):
             num = f'{batch_idx+1}'.zfill(len(str(len(train_loader))))
             with open(f'{OUT_DIR}/batch_{num}.pkl', 'wb') as f:
                 pickle.dump((m , e), f)
-                print(f'{num}/{len(train_loader)}')
+                print(f'{num}/{len(train_loader)}', time.time()-t if t is not None else 'start')
+            t = time.time()
