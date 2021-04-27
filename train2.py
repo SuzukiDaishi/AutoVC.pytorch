@@ -6,8 +6,8 @@ import random
 import torch.optim as optim
 from model_vc2 import StyleEncoder
 from model_vc2 import Generator
-from dataset2_1 import AudiobookDataset
-from dataset2_1 import train_collate, test_collate
+from dataset2 import AudiobookDataset
+from dataset2 import train_collate, test_collate
 import numpy as np
 from hparams import hparams as hp
 
