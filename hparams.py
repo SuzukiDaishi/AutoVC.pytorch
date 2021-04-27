@@ -17,7 +17,7 @@ class hparams:
     dim_neck = 32
     dim_emb = 256
     dim_pre = 512
-    freq = 32
+    freq = 18
     
     ## wavenet vocoder
     builder = 'wavenet'
@@ -39,3 +39,8 @@ class hparams:
     n_speakers = -1
     weight_normalization = True
     legacy = True
+
+    ## world vocoder
+    num_mcep = 36
+    frame_period = 5.0
+    n_frames = 128

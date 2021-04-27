@@ -64,7 +64,7 @@ def create_data(data, output_dir, phase, seq_len=None, is_trim=False):
 
             ret.append({'wav': files, 'emb': emb_file, 'world': world_path})
         
-        f0s, timeaxes, sps, aps, coded_sps = world.world_encode_data(waves, hp.sample_rate, 5, 24)
+        f0s, timeaxes, sps, aps, coded_sps = world.world_encode_data(waves, hp.sample_rate, frame_period=hp.frame_period, coded_dim=hp.num_mcep)
         log_f0_mean, log_f0_std = world.logf0_statistics(f0s)
         coded_sps_transposed = world.transpose_in_list(coded_sps)
         coded_sps_norm, coded_sps_mean, coded_sps_std = world.coded_sps_normalization_fit_transform(coded_sps_transposed)
