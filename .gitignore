@@ -10,5 +10,6 @@ out
 .cache
 
 .DS_Store
+.vscode
 
 __pycache__
