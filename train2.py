@@ -6,8 +6,9 @@ import random
 import torch.optim as optim
 from model_vc2 import StyleEncoder
 from model_vc2 import Generator
-from dataset2 import AudiobookDataset
-from dataset2 import train_collate, test_collate
+# from dataset2_1 import AudiobookDataset
+# from dataset2_1 import train_collate, test_collate
+from dataset2_2 import AudioDataloader
 import numpy as np
 from hparams import hparams as hp
 
@@ -39,7 +40,7 @@ def train(args, model, device, train_loader, optimizer, epoch, sigma=1.0):
     model.train()
     train_loss = 0
 
-    for batch_idx, (m, e) in enumerate(train_loader):
+    for batch_idx, (m, e) in enumerate(train_loader.loader()):
         m = m.to(device)
         e = e.to(device)
         
@@ -63,42 +64,42 @@ def train(args, model, device, train_loader, optimizer, epoch, sigma=1.0):
 
         if batch_idx % 10 == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(m), len(train_loader.dataset),
+                epoch, batch_idx * len(m), train_loader.data_length(),
                 100. * batch_idx / len(train_loader), loss.item()))
     
-    train_loss /= len(train_loader.dataset)
+    train_loss /= train_loader.data_length()
     print('\nTrain set: Average loss: {:.4f}\n'.format(train_loss))
 
-def test(model, device, test_loader, checkpoint_dir, epoch, sigma=1.0):
-    print("Using averaged model for evaluation")
-    model.eval()
+# def test(model, device, test_loader, checkpoint_dir, epoch, sigma=1.0):
+#     print("Using averaged model for evaluation")
+#     model.eval()
    
-    test_loss = 0
+#     test_loss = 0
 
-    with torch.no_grad():
-        for batch_idx, (m, e) in enumerate(test_loader):
-            m = m.to(device)
-            e = e.to(device)
+#     with torch.no_grad():
+#         for batch_idx, (m, e) in enumerate(test_loader):
+#             m = m.to(device)
+#             e = e.to(device)
             
-            mel_outputs, mel_outputs_postnet, codes = model(m, e, e)
+#             mel_outputs, mel_outputs_postnet, codes = model(m, e, e)
 
-            m_rec = mel_outputs_postnet
-            codes_rec = model(m_rec, e, None)
+#             m_rec = mel_outputs_postnet
+#             codes_rec = model(m_rec, e, None)
 
-            L_recon = ((mel_outputs_postnet - m) ** 2).sum(dim=(1,2)).mean()
-            L_recon0 = ((mel_outputs - m) ** 2).sum(dim=(1,2)).mean()
-            L_content = torch.abs(codes - codes_rec).sum(dim=1).mean()
+#             L_recon = ((mel_outputs_postnet - m) ** 2).sum(dim=(1,2)).mean()
+#             L_recon0 = ((mel_outputs - m) ** 2).sum(dim=(1,2)).mean()
+#             L_content = torch.abs(codes - codes_rec).sum(dim=1).mean()
 
-            loss = L_recon + L_recon0 + L_content
+#             loss = L_recon + L_recon0 + L_content
 
-            if batch_idx % 100 == 0:
-                print('Val Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                    epoch, batch_idx * len(m), len(test_loader.dataset),
-                    100. * batch_idx / len(test_loader), loss.item()))
-            test_loss += loss.item()
+#             if batch_idx % 100 == 0:
+#                 print('Val Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+#                     epoch, batch_idx * len(m), len(test_loader.dataset),
+#                     100. * batch_idx / len(test_loader), loss.item()))
+#             test_loss += loss.item()
 
-        test_loss /= len(test_loader.dataset)
-        print('\nTest set: Average loss: {:.4f}\n'.format(test_loss))
+#         test_loss /= len(test_loader.dataset)
+#         print('\nTest set: Average loss: {:.4f}\n'.format(test_loss))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train or run some neural net')
@@ -134,15 +135,17 @@ if __name__ == '__main__':
     with open(os.path.join(data_path, 'test_data.json'), 'r') as f:
         test_data = json.load(f)
 
-    train_loader = torch.utils.data.DataLoader(
-        AudiobookDataset(train_data),
-        collate_fn=train_collate,
-        batch_size=args.batch_size, shuffle=True, **kwargs)
+    # train_loader = torch.utils.data.DataLoader(
+    #     AudiobookDataset(train_data),
+    #     collate_fn=train_collate,
+    #     batch_size=args.batch_size, shuffle=True, **kwargs)
 
-    test_loader = torch.utils.data.DataLoader(
-        AudiobookDataset(test_data),
-        collate_fn=test_collate,
-        batch_size=1, shuffle=False, **kwargs)
+    # test_loader = torch.utils.data.DataLoader(
+    #     AudiobookDataset(test_data),
+    #     collate_fn=test_collate,
+    #     batch_size=1, shuffle=False, **kwargs)
+
+    train_loader = AudioDataloader('data2')
 
     model = Generator(hp.dim_neck, hp.dim_emb, hp.dim_pre, hp.freq).to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -159,5 +162,5 @@ if __name__ == '__main__':
         train(args, model, device, train_loader, optimizer, epoch)
 
         if epoch % 10 == 0:
-            test(model, device, test_loader, checkpoint_dir, epoch)
+            # test(model, device, test_loader, checkpoint_dir, epoch)
             save_checkpoint(device, model, optimizer, checkpoint_dir, epoch)
