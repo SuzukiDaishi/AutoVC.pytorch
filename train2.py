@@ -129,11 +129,11 @@ if __name__ == '__main__':
 
     torch.autograd.set_detect_anomaly(True)
     
-    with open(os.path.join(data_path, 'train_data.json'), 'r') as f:
-        train_data = json.load(f)
+    # with open(os.path.join(data_path, 'train_data.json'), 'r') as f:
+    #     train_data = json.load(f)
 
-    with open(os.path.join(data_path, 'test_data.json'), 'r') as f:
-        test_data = json.load(f)
+    # with open(os.path.join(data_path, 'test_data.json'), 'r') as f:
+    #     test_data = json.load(f)
 
     # train_loader = torch.utils.data.DataLoader(
     #     AudiobookDataset(train_data),
