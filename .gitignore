@@ -3,6 +3,7 @@ checkpoints
 checkpoint_step001000000_ema.pth
 data
 data2
+data_*
 out
 
 .bash_history

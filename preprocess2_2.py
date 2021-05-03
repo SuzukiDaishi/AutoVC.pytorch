@@ -75,8 +75,8 @@ def test_collate(batch):
 if __name__ == '__main__':
 
     BASE_TRAIN_JSON = 'data/train_data.json'
-    OUT_DIR = 'data2'
-    BATCH_SIZE = 8
+    OUT_DIR = 'data_64'
+    BATCH_SIZE = 64
 
     if not os.path.isdir(OUT_DIR):
         os.mkdir(OUT_DIR)

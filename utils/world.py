@@ -67,8 +67,8 @@ def wav_padding(wav, sr, frame_period, multiple=4):
 
 def pitch_conversion(f0, mean_log_src, std_log_src, mean_log_target, std_log_target):
     # Logarithm Gaussian Normalization for Pitch Conversions
-    f0_converted = np.exp((np.log(f0) - mean_log_src) /
-                          std_log_src * std_log_target + mean_log_target)
+    f0_converted = np.exp((np.ma.log(f0) - mean_log_src) /
+                          std_log_src * std_log_target + mean_log_target).filled(0)
     return f0_converted
 
 def world_decode_spectral_envelop(coded_sp, fs):
