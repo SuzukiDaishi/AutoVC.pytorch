@@ -219,3 +219,11 @@ class Generator(nn.Module):
         #mel_outputs_postnet = mel_outputs_postnet.unsqueeze(1)
         
         return mel_outputs, mel_outputs_postnet, torch.cat(codes, dim=-1)
+
+if __name__ == '__main__':
+    # torch.Size([8, 36, 128]) torch.Size([8, 256])
+    m = torch.rand(8, 36, 128)
+    e = torch.rand(8, 256)
+    model = Generator(32, 256, 512, 18)
+    o_1, o_2, o_3 = model(m, e, e)
+    print(o_1.shape, o_2.shape, o_3.shape)
