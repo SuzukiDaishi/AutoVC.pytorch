@@ -23,14 +23,11 @@ class AudiobookDataset(torch.utils.data.Dataset):
         f = random.choice(fs)
         wav = dsp.load_wav(f)
         emb = np.load(e)
-        pw_data = np.load(pw)
-        coded_sps_mean = pw_data['coded_sps_mean']
-        coded_sps_std = pw_data['coded_sps_std']
 
         if len(wav) < hp.seq_len:
             wav = np.pad(wav, (0, hp.seq_len - len(wav)), mode='constant')
         
-        return wav, emb, f, coded_sps_mean, coded_sps_std
+        return wav, emb, f
 
     def __len__(self):
         return len(self.data)
@@ -50,7 +47,7 @@ def train_collate(batch):
     # mceps = [ x[sig_offsets[i]:sig_offsets[i]+hp.n_frames] for i, x in enumerate(mceps) ]
 
     mceps = world.transpose_in_list(mceps)
-    mceps = [ world.coded_sps_normalization_fit_transform([x], coded_sps_mean=batch[i][3], coded_sps_std=batch[i][4])[0][0] \
+    mceps = [ world.coded_sps_normalization_fit_transform([x]) \
               for i, x in enumerate(mceps) ]
 
     emb = [x[1] for x in batch]
@@ -75,11 +72,14 @@ def test_collate(batch):
 if __name__ == '__main__':
 
     BASE_TRAIN_JSON = 'data/train_data.json'
-    OUT_DIR = 'data_64'
-    BATCH_SIZE = 64
+    BATCH_SIZE = 32
+    OUT_DIR = f'data_{BATCH_SIZE}'
 
     if not os.path.isdir(OUT_DIR):
         os.mkdir(OUT_DIR)
+
+    mcep_max = 0
+    mcep_min = 0
 
     with open(BASE_TRAIN_JSON, 'r') as f:
         train_data = json.load(f)
@@ -90,8 +90,13 @@ if __name__ == '__main__':
                             shuffle=True)
         t = None
         for batch_idx, (m, e) in enumerate(train_loader):
+            for mm in m: 
+                mcep_max = np.max([mm.max(), mcep_max])
+                mcep_min = np.min([mm.min(), mcep_min])
             num = f'{batch_idx+1}'.zfill(len(str(len(train_loader))))
             with open(f'{OUT_DIR}/batch_{num}.pkl', 'wb') as f:
                 pickle.dump((m , e), f)
                 print(f'{num}/{len(train_loader)}', time.time()-t if t is not None else 'start')
             t = time.time()
+            print('mcep_max:', mcep_max, 'mcep_min:', mcep_min)
+        print('mcep_max:', mcep_max, 'mcep_min:', mcep_min)

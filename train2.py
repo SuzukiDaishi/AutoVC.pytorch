@@ -128,24 +128,9 @@ if __name__ == '__main__':
     kwargs = {'num_workers': 8, 'pin_memory': True} if use_cuda else {}
 
     torch.autograd.set_detect_anomaly(True)
-    
-    # with open(os.path.join(data_path, 'train_data.json'), 'r') as f:
-    #     train_data = json.load(f)
 
-    # with open(os.path.join(data_path, 'test_data.json'), 'r') as f:
-    #     test_data = json.load(f)
 
-    # train_loader = torch.utils.data.DataLoader(
-    #     AudiobookDataset(train_data),
-    #     collate_fn=train_collate,
-    #     batch_size=args.batch_size, shuffle=True, **kwargs)
-
-    # test_loader = torch.utils.data.DataLoader(
-    #     AudiobookDataset(test_data),
-    #     collate_fn=test_collate,
-    #     batch_size=1, shuffle=False, **kwargs)
-
-    train_loader = AudioDataloader('data2')
+    train_loader = AudioDataloader(f'data_{args.batch_size}')
 
     model = Generator(hp.dim_neck, hp.dim_emb, hp.dim_pre, hp.freq).to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)

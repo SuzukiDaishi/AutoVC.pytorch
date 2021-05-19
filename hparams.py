@@ -44,3 +44,6 @@ class hparams:
     num_mcep = 36
     frame_period = 5.0
     n_frames = 128
+
+    mcep_max = 7.298862813094935 
+    mcep_min = -36.89449528799119

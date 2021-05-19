@@ -66,13 +66,11 @@ def create_data(data, output_dir, phase, seq_len=None, is_trim=False):
         
         f0s, timeaxes, sps, aps, coded_sps = world.world_encode_data(waves, hp.sample_rate, frame_period=hp.frame_period, coded_dim=hp.num_mcep)
         log_f0_mean, log_f0_std = world.logf0_statistics(f0s)
-        coded_sps_transposed = world.transpose_in_list(coded_sps)
-        coded_sps_norm, coded_sps_mean, coded_sps_std = world.coded_sps_normalization_fit_transform(coded_sps_transposed)
+        # coded_sps_transposed = world.transpose_in_list(coded_sps)
+        # coded_sps_norm = world.coded_sps_normalization_fit_transform(coded_sps_transposed)
 
         np.savez(world_path, log_f0_mean=log_f0_mean, 
-                             log_f0_std=log_f0_std,
-                             coded_sps_mean=coded_sps_mean, 
-                             coded_sps_std=coded_sps_std)
+                             log_f0_std=log_f0_std)
 
     return ret
             
@@ -139,14 +137,20 @@ if __name__ == '__main__':
         unseen_data[speaker] = {'files': wavfiles, 'emb': emb}
 
     train_data = create_data(train_data, output_dir, 'train', hp.seq_len)
-    test_data = create_data(test_data, output_dir, 'test')
-    unseen_data = create_data(unseen_data, output_dir, 'unseen')
 
     with open(os.path.join(output_dir, 'train_data.json'), 'w') as f:
         json.dump(train_data, f)
+    
+    del train_data
+
+    test_data = create_data(test_data, output_dir, 'test')
 
     with open(os.path.join(output_dir, 'test_data.json'), 'w') as f:
         json.dump(test_data, f)
+    
+    del test_data
+
+    unseen_data = create_data(unseen_data, output_dir, 'unseen')
 
     with open(os.path.join(output_dir, 'unseen_data.json'), 'w') as f:
         json.dump(unseen_data, f)

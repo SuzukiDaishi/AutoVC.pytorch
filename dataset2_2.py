@@ -28,13 +28,13 @@ class AudioDataloader():
             mceps, emb = pickle.load(open(path, 'rb'))
             max_offsets = [ m.shape[1] - hp.n_frames + 1 for m in mceps ]
             sig_offsets = [ np.random.randint(0, offset) for offset in max_offsets]
-            mceps = [ x[:, sig_offsets[i]:sig_offsets[i]+hp.n_frames] for i, x in enumerate(mceps) ]
+            mceps = [ (x[:, sig_offsets[i]:sig_offsets[i]+hp.n_frames] - hp.mcep_min) / ( hp.mcep_max - hp.mcep_min ) for i, x in enumerate(mceps) ]
             emb = torch.FloatTensor(emb)
             mceps = torch.FloatTensor(mceps)
             yield mceps, emb
 
 if __name__ == '__main__':
-    dl = AudioDataloader('data2')
+    dl = AudioDataloader(f'data_32')
     for m, e in dl.loader():
         print(m.shape, e.shape)
         # torch.Size([8, 36, 128]) torch.Size([8, 256])

@@ -45,13 +45,14 @@ def transpose_in_list(lst):
 
 def coded_sps_normalization_fit_transform(coded_sps, coded_sps_mean=None, coded_sps_std=None):
     coded_sps_concatenated = np.concatenate(coded_sps, axis=1)
-    coded_sps_mean = np.mean(coded_sps_concatenated, axis=1, keepdims=True) if coded_sps_mean is None else coded_sps_mean
-    coded_sps_std = np.std(coded_sps_concatenated, axis=1, keepdims=True) if coded_sps_std is None else coded_sps_std
-    coded_sps_normalized = list()
-    for coded_sp in coded_sps:
-        coded_sps_normalized.append(
-            (coded_sp - coded_sps_mean) / coded_sps_std)
-    return coded_sps_normalized, coded_sps_mean, coded_sps_std
+    return coded_sps_concatenated
+    # coded_sps_mean = np.mean(coded_sps_concatenated, axis=1, keepdims=True) if coded_sps_mean is None else coded_sps_mean
+    # coded_sps_std = np.std(coded_sps_concatenated, axis=1, keepdims=True) if coded_sps_std is None else coded_sps_std
+    # coded_sps_normalized = list()
+    # for coded_sp in coded_sps:
+    #     coded_sps_normalized.append(
+    #         (coded_sp - coded_sps_mean) / coded_sps_std)
+    # return coded_sps_normalized, coded_sps_mean, coded_sps_std
 
 def wav_padding(wav, sr, frame_period, multiple=4):
     assert wav.ndim == 1
