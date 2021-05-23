@@ -64,6 +64,7 @@ class ContentEncoder(nn.Module):
         self.freq = freq
         
         convolutions = []
+        linears = []
         for i in range(3):
             conv_layer = nn.Sequential(
                 ConvNorm(128+dim_emb if i==0 else 512,
@@ -73,17 +74,21 @@ class ContentEncoder(nn.Module):
                          dilation=1, w_init_gain='relu'),
                 nn.BatchNorm1d(512))
             convolutions.append(conv_layer)
+            linears.append(nn.Linear(256, 512))
         self.convolutions = nn.ModuleList(convolutions)
+        self.linears = nn.ModuleList(linears)
         
         self.lstm = nn.LSTM(512, dim_neck, 2, batch_first=True, bidirectional=True)
 
     def forward(self, x, c_org):
         x = x.squeeze(1).transpose(2,1)
+        c_org_se = c_org
         c_org = c_org.unsqueeze(-1).expand(-1, -1, x.size(-1))
         x = torch.cat((x, c_org), dim=1)
 
-        for conv in self.convolutions:
+        for conv, linear in zip(self.convolutions, self.linears):
             x = F.relu(conv(x))
+            x = x * torch.sigmoid(linear(c_org_se)).view(-1, 512, 1).expand_as(x)
         x = x.transpose(1, 2)
         
         self.lstm.flatten_parameters()
@@ -110,6 +115,7 @@ class Decoder(nn.Module):
         self.lstm1 = nn.LSTM(dim_neck*2+dim_emb, dim_pre, 1, batch_first=True)
         
         convolutions = []
+        linears = []
         for i in range(3):
             conv_layer = nn.Sequential(
                 ConvNorm(dim_pre,
@@ -119,20 +125,23 @@ class Decoder(nn.Module):
                          dilation=1, w_init_gain='relu'),
                 nn.BatchNorm1d(dim_pre))
             convolutions.append(conv_layer)
+            linears.append(nn.Linear(256, dim_pre))
         self.convolutions = nn.ModuleList(convolutions)
+        self.linears = nn.ModuleList(linears)
         
         self.lstm2 = nn.LSTM(dim_pre, 1024, 2, batch_first=True)
         
         self.linear_projection = LinearNorm(1024, 128)
 
-    def forward(self, x):
+    def forward(self, x, c_trg):
         
         #self.lstm1.flatten_parameters()
         x, _ = self.lstm1(x)
         x = x.transpose(1, 2)
         
-        for conv in self.convolutions:
+        for conv, linear in zip(self.convolutions, self.linears):
             x = F.relu(conv(x))
+            x = x * torch.sigmoid(linear(c_trg)).view(-1, 512, 1).expand_as(x)
         x = x.transpose(1, 2)
         
         outputs, _ = self.lstm2(x)
@@ -210,7 +219,7 @@ class Generator(nn.Module):
         
         encoder_outputs = torch.cat((code_exp, c_trg.unsqueeze(1).expand(-1,x.size(1),-1)), dim=-1)
         
-        mel_outputs = self.decoder(encoder_outputs)
+        mel_outputs = self.decoder(encoder_outputs, c_trg)
                 
         mel_outputs_postnet = self.postnet(mel_outputs.transpose(2,1))
         mel_outputs_postnet = mel_outputs + mel_outputs_postnet.transpose(2,1)
@@ -219,3 +228,18 @@ class Generator(nn.Module):
         #mel_outputs_postnet = mel_outputs_postnet.unsqueeze(1)
         
         return mel_outputs, mel_outputs_postnet, torch.cat(codes, dim=-1)
+
+
+if __name__ == '__main__':
+    x = torch.rand(8, 36, 128)
+    e = torch.rand(8, 256)
+
+    model = Generator(32, 256, 512, 18)
+
+    out = model(x, e, e)
+
+    for out in out:
+        print(out.shape)
+    
+    
+

@@ -108,7 +108,7 @@ if __name__ == '__main__':
                         help='The path to checkpoint')
     parser.add_argument('--epochs', type=int, default=600,
                         help='number of epochs to train (default: 14)')
-    parser.add_argument('--batch-size', type=int, default=8, metavar='N',
+    parser.add_argument('--batch-size', type=int, default=32, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate (default: 1.0)')
@@ -145,7 +145,7 @@ if __name__ == '__main__':
     #     collate_fn=test_collate,
     #     batch_size=1, shuffle=False, **kwargs)
 
-    train_loader = AudioDataloader('data2')
+    train_loader = AudioDataloader(f'data_{args.batch_size}')
 
     model = Generator(hp.dim_neck, hp.dim_emb, hp.dim_pre, hp.freq).to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
