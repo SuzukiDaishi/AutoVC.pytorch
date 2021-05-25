@@ -108,7 +108,7 @@ if __name__ == '__main__':
                         help='The path to checkpoint')
     parser.add_argument('--epochs', type=int, default=600,
                         help='number of epochs to train (default: 14)')
-    parser.add_argument('--batch-size', type=int, default=8, metavar='N',
+    parser.add_argument('--batch-size', type=int, default=32, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate (default: 1.0)')
