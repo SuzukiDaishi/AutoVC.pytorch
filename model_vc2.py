@@ -71,7 +71,7 @@ class ContentEncoder(nn.Module):
                          kernel_size=5, stride=1,
                          padding=2,
                          dilation=1, w_init_gain='relu'),
-                nn.BatchNorm1d(512))
+                nn.InstanceNorm2d(512))
             convolutions.append(conv_layer)
         self.convolutions = nn.ModuleList(convolutions)
         
@@ -117,7 +117,7 @@ class Decoder(nn.Module):
                          kernel_size=5, stride=1,
                          padding=2,
                          dilation=1, w_init_gain='relu'),
-                nn.BatchNorm1d(dim_pre))
+                nn.InstanceNorm2d(dim_pre))
             convolutions.append(conv_layer)
         self.convolutions = nn.ModuleList(convolutions)
         
@@ -157,7 +157,7 @@ class Postnet(nn.Module):
                          kernel_size=5, stride=1,
                          padding=2,
                          dilation=1, w_init_gain='tanh'),
-                nn.BatchNorm1d(512))
+                nn.InstanceNorm2d(512))
         )
 
         for i in range(1, 5 - 1):
@@ -168,7 +168,7 @@ class Postnet(nn.Module):
                              kernel_size=5, stride=1,
                              padding=2,
                              dilation=1, w_init_gain='tanh'),
-                    nn.BatchNorm1d(512))
+                    nn.InstanceNorm2d(512))
             )
 
         self.convolutions.append(
@@ -177,7 +177,7 @@ class Postnet(nn.Module):
                          kernel_size=5, stride=1,
                          padding=2,
                          dilation=1, w_init_gain='linear'),
-                nn.BatchNorm1d(128))
+                nn.InstanceNorm2d(128))
             )
 
     def forward(self, x):
