@@ -145,7 +145,7 @@ if __name__ == '__main__':
     #     collate_fn=test_collate,
     #     batch_size=1, shuffle=False, **kwargs)
 
-    train_loader = AudioDataloader('data2')
+    train_loader = AudioDataloader(f'data_{args.batch_size}')
 
     model = Generator(hp.dim_neck, hp.dim_emb, hp.dim_pre, hp.freq).to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
