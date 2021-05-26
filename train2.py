@@ -4,8 +4,7 @@ import argparse
 import torch
 import random
 import torch.optim as optim
-from model_vc2 import StyleEncoder
-from model_vc2 import Generator
+from model_vc3 import Generator
 # from dataset2_1 import AudiobookDataset
 # from dataset2_1 import train_collate, test_collate
 from dataset2_2 import AudioDataloader
@@ -46,16 +45,15 @@ def train(args, model, device, train_loader, optimizer, epoch, sigma=1.0):
         
         model.zero_grad()
 
-        mel_outputs, mel_outputs_postnet, codes = model(m, e, e)
+        mel_outputs, codes = model(m, e, e)
 
-        m_rec = mel_outputs_postnet
+        m_rec = mel_outputs
         codes_rec = model(m_rec, e, None)
 
-        L_recon = ((mel_outputs_postnet - m) ** 2).sum(dim=(1,2)).mean()
-        L_recon0 = ((mel_outputs - m) ** 2).sum(dim=(1,2)).mean()
+        L_recon = ((mel_outputs - m) ** 2).sum(dim=(1,2)).mean()
         L_content = torch.abs(codes - codes_rec).sum(dim=1).mean()
 
-        loss = L_recon + L_recon0 + L_content
+        loss = L_recon + L_content
 
         loss.backward()
         optimizer.step()
@@ -108,7 +106,7 @@ if __name__ == '__main__':
                         help='The path to checkpoint')
     parser.add_argument('--epochs', type=int, default=600,
                         help='number of epochs to train (default: 14)')
-    parser.add_argument('--batch-size', type=int, default=8, metavar='N',
+    parser.add_argument('--batch-size', type=int, default=32, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate (default: 1.0)')
@@ -147,7 +145,7 @@ if __name__ == '__main__':
 
     train_loader = AudioDataloader(f'data_{args.batch_size}')
 
-    model = Generator(hp.dim_neck, hp.dim_emb, hp.dim_pre, hp.freq).to(device)
+    model = Generator().to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
     current_epoch = 0
