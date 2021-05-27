@@ -121,15 +121,15 @@ class Generator(nn.Module):
         x = x.contiguous().view(-1, 2304, width_size // 4)
         x = self.down_conversion(x)
 
-        x = self.residual_1(x, c_org)
-        x = self.residual_2(x, c_org)
-        x = self.residual_3(x, c_org)
-        x = self.residual_4(x, c_org)
-
         codes = x
 
         if c_trg is None:
             return torch.flatten(codes, 1, 2)
+
+        x = self.residual_1(x, c_trg)
+        x = self.residual_2(x, c_trg)
+        x = self.residual_3(x, c_trg)
+        x = self.residual_4(x, c_trg)
 
         x = self.residual_5(x, c_trg)
         x = self.residual_6(x, c_trg)
