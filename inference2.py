@@ -8,7 +8,7 @@ import librosa
 from hparams import hparams as hp
 from utils import world
 from utils.dsp import load_wav
-from model_vc2 import Generator
+from model_vc3 import Generator
 from synthesis import build_model
 from synthesis import wavegen
 
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     emb_tgt = [emb_tgt for _ in range(mceps.shape[0])]
     emb_tgt = torch.FloatTensor(emb_tgt)
 
-    model = Generator(dim_neck, dim_emb, dim_pre, freq)
+    model = Generator()
 
     checkpoint = torch.load(autovc_checkpoint_path, map_location=torch.device('cpu'))
     model.load_state_dict(checkpoint['model'])
@@ -84,9 +84,9 @@ if __name__ == '__main__':
     e = emb
     et = emb_tgt
 
-    mel_otputs, mel_outputs_postnet, codes = model(x, e, et)
+    mel_outputs_postnet, codes = model(x, e, et)
     out = (mel_outputs_postnet.cpu().detach().numpy() * coded_sps_std_tgt + coded_sps_mean_tgt).transpose(0,2,1).reshape(-1, 36)[:-pad_size]
     out = world.world_decode_spectral_envelop(out, sample_rate)
     out_f0 = world.pitch_conversion(f0, log_f0_mean, log_f0_std, log_f0_mean_tgt, log_f0_std_tgt)
-    waveform = world.world_speech_synthesis(out_f0, out, ap, sample_rate, frame_period)
+    waveform = world.world_speech_synthesis(f0, out, ap, sample_rate, frame_period)
     librosa.output.write_wav(output_path, waveform, sr=16000)
