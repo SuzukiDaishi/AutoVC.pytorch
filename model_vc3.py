@@ -45,10 +45,38 @@ class ResidualBlock(nn.Module):
 
         return x
 
+class SEResidualBlock(nn.Module):
+    
+    def __init__(self, dim_in, dim_out, style_num):
+        super(SEResidualBlock, self).__init__()
+        self.conv = nn.Conv1d(dim_in, dim_out, kernel_size=3, stride=1, padding=1, bias=False)
+        self.cin = ConditionalInstanceNormalisation(dim_out, style_num)
+        self.emb_se = nn.Linear(style_num, dim_out)
+        self.glu = nn.GLU(dim=1)
+
+    def forward(self, x, c):
+        y = x
+        y = self.conv(y)
+        y = self.cin(y, c)
+        y = y * torch.sigmoid(self.emb_se(c)).view(-1, 512, 1).expand_as(y)
+        y = self.glu(y)
+        y = y + x
+        return y
+
 class Generator(nn.Module):
     """Generator network."""
     def __init__(self, num_speakers=256):
         super(Generator, self).__init__()
+
+        self.emb_se_1 = nn.Linear(256, 64)
+        self.emb_se_2 = nn.Linear(256, 128)
+        self.emb_se_3 = nn.Linear(256, 256)
+        self.emb_se_4 = nn.Linear(256, 256)
+
+        self.emb_se_5 = nn.Linear(256, 256)
+        self.emb_se_6 = nn.Linear(256, 128)
+        self.emb_se_7 = nn.Linear(256, 64)
+
         # Down-sampling layers
         self.down_sample_1 = nn.Sequential(
             nn.Conv2d(in_channels=1, out_channels=128, kernel_size=(3, 9), padding=(1, 4), bias=False),
@@ -77,15 +105,15 @@ class Generator(nn.Module):
         )
 
         # Bottleneck layers.
-        self.residual_1 = ResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
-        self.residual_2 = ResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
-        self.residual_3 = ResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
-        self.residual_4 = ResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
-        self.residual_5 = ResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
-        self.residual_6 = ResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
-        self.residual_7 = ResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
-        self.residual_8 = ResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
-        self.residual_9 = ResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
+        self.residual_1 = SEResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
+        self.residual_2 = SEResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
+        self.residual_3 = SEResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
+        self.residual_4 = SEResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
+        self.residual_5 = SEResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
+        self.residual_6 = SEResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
+        self.residual_7 = SEResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
+        self.residual_8 = SEResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
+        self.residual_9 = SEResidualBlock(dim_in=256, dim_out=512, style_num=num_speakers)
 
         # Up-conversion layers.
         self.up_conversion = nn.Conv1d(in_channels=256,
@@ -115,11 +143,15 @@ class Generator(nn.Module):
         width_size = x.size(3)
 
         x = self.down_sample_1(x)
+        x = x * torch.sigmoid(self.emb_se_1(c_org)).view(-1, 64, 1, 1).expand_as(x)
         x = self.down_sample_2(x)
+        x = x * torch.sigmoid(self.emb_se_2(c_org)).view(-1, 128, 1, 1).expand_as(x)
         x = self.down_sample_3(x)
+        x = x * torch.sigmoid(self.emb_se_3(c_org)).view(-1, 256, 1, 1).expand_as(x)
 
         x = x.contiguous().view(-1, 2304, width_size // 4)
         x = self.down_conversion(x)
+        x = x * torch.sigmoid(self.emb_se_4(c_org)).view(-1, 256, 1).expand_as(x)
 
         codes = x
 
@@ -139,9 +171,12 @@ class Generator(nn.Module):
 
         x = self.up_conversion(x)
         x = x.view(-1, 256, 9, width_size // 4)
+        x = x * torch.sigmoid(self.emb_se_5(c_trg)).view(-1, 256, 1, 1).expand_as(x)
 
         x = self.up_sample_1(x)
+        x = x * torch.sigmoid(self.emb_se_6(c_trg)).view(-1, 128, 1, 1).expand_as(x)
         x = self.up_sample_2(x)
+        x = x * torch.sigmoid(self.emb_se_7(c_trg)).view(-1, 64, 1, 1).expand_as(x)
         x = self.out(x)
 
         x = torch.squeeze(x, 1)
