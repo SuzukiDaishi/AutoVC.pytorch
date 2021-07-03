@@ -1,20 +1,16 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from complex.ComplexFunctions import complex_relu
+from complex.ComplexLayer import ComplexLinear, ComplexConv1d, NaiveComplexBatchNorm1d, NavieComplexLSTM
 
 class LinearNorm(torch.nn.Module):
     def __init__(self, in_dim, out_dim, bias=True, w_init_gain='linear'):
         super(LinearNorm, self).__init__()
-        self.linear_layer = torch.nn.Linear(in_dim, out_dim, bias=bias)
-
-        #torch.nn.init.xavier_uniform_(
-        #    self.linear_layer.weight,
-        #    gain=torch.nn.init.calculate_gain(w_init_gain))
+        self.linear_layer = ComplexLinear(in_dim, out_dim)
 
     def forward(self, x):
         return self.linear_layer(x)
-
 
 class ConvNorm(torch.nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=1, stride=1,
@@ -24,19 +20,15 @@ class ConvNorm(torch.nn.Module):
             assert(kernel_size % 2 == 1)
             padding = int(dilation * (kernel_size - 1) / 2)
 
-        self.conv = torch.nn.Conv1d(in_channels, out_channels,
-                                    kernel_size=kernel_size, stride=stride,
-                                    padding=padding, dilation=dilation,
-                                    bias=bias)
-
-        #torch.nn.init.xavier_uniform_(
-        #    self.conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
+        self.conv = ComplexConv1d(in_channels, out_channels,
+                                  kernel_size=kernel_size, stride=stride,
+                                  padding=padding, dilation=dilation,
+                                  bias=bias)
 
     def forward(self, signal):
         conv_signal = self.conv(signal)
         return conv_signal
 
-    
 class StyleEncoder(nn.Module):
     """Style Encoder module:
     """
@@ -44,7 +36,7 @@ class StyleEncoder(nn.Module):
         super(StyleEncoder, self).__init__()
         
         self.lstm = nn.LSTM(80, 768, 2, batch_first=True)       
-        self.linear = LinearNorm(768, dim_emb)
+        self.linear = nn.Linear(768, dim_emb)
 
     def forward(self, x):
         outputs, _ = self.lstm(x)
@@ -52,7 +44,6 @@ class StyleEncoder(nn.Module):
         emb = self.linear(outputs[:,-1,:])
         
         return emb
-
     
 class ContentEncoder(nn.Module):
     """Encoder module:
@@ -70,11 +61,11 @@ class ContentEncoder(nn.Module):
                          kernel_size=5, stride=1,
                          padding=2,
                          dilation=1, w_init_gain='relu'),
-                nn.BatchNorm1d(512))
+                NaiveComplexBatchNorm1d(512))
             convolutions.append(conv_layer)
         self.convolutions = nn.ModuleList(convolutions)
         
-        self.lstm = nn.LSTM(512, dim_neck, 2, batch_first=True, bidirectional=True)
+        self.lstm = NavieComplexLSTM(512, dim_neck, 2, batch_first=True, bidirectional=True)
 
     def forward(self, x, c_org):
         x = x.squeeze(1).transpose(2,1)
@@ -82,11 +73,11 @@ class ContentEncoder(nn.Module):
         x = torch.cat((x, c_org), dim=1)
         
         for conv in self.convolutions:
-            x = F.relu(conv(x))
+            x = complex_relu(conv(x))
         x = x.transpose(1, 2)
         
         self.lstm.flatten_parameters()
-        outputs, _ = self.lstm(x)
+        outputs = self.lstm(x)
         out_forward = outputs[:, :, :self.dim_neck]
         out_backward = outputs[:, :, self.dim_neck:]
         
@@ -95,15 +86,14 @@ class ContentEncoder(nn.Module):
             codes.append(torch.cat((out_forward[:,i+self.freq-1,:],out_backward[:,i,:]), dim=-1))
 
         return codes
-      
-        
+
 class Decoder(nn.Module):
     """Decoder module:
     """
     def __init__(self, dim_neck, dim_emb, dim_pre):
         super(Decoder, self).__init__()
         
-        self.lstm1 = nn.LSTM(dim_neck*2+dim_emb, dim_pre, 1, batch_first=True)
+        self.lstm1 = NavieComplexLSTM(dim_neck*2+dim_emb, dim_pre, 1, batch_first=True)
         
         convolutions = []
         for i in range(3):
@@ -113,31 +103,30 @@ class Decoder(nn.Module):
                          kernel_size=5, stride=1,
                          padding=2,
                          dilation=1, w_init_gain='relu'),
-                nn.BatchNorm1d(dim_pre))
+                NaiveComplexBatchNorm1d(dim_pre))
             convolutions.append(conv_layer)
         self.convolutions = nn.ModuleList(convolutions)
         
-        self.lstm2 = nn.LSTM(dim_pre, 1024, 2, batch_first=True)
+        self.lstm2 = NavieComplexLSTM(dim_pre, 1024, 2, batch_first=True)
         
         self.linear_projection = LinearNorm(1024, 80)
 
     def forward(self, x):
         
         #self.lstm1.flatten_parameters()
-        x, _ = self.lstm1(x)
+        x = self.lstm1(x)
         x = x.transpose(1, 2)
         
         for conv in self.convolutions:
-            x = F.relu(conv(x))
+            x = complex_relu(conv(x))
         x = x.transpose(1, 2)
         
-        outputs, _ = self.lstm2(x)
+        outputs = self.lstm2(x)
         
         decoder_output = self.linear_projection(outputs)
 
-        return decoder_output   
-    
-    
+        return decoder_output
+
 class Postnet(nn.Module):
     """Postnet
         - Five 1-d convolution with 512 channels and kernel size 5
@@ -153,7 +142,7 @@ class Postnet(nn.Module):
                          kernel_size=5, stride=1,
                          padding=2,
                          dilation=1, w_init_gain='tanh'),
-                nn.BatchNorm1d(512))
+                NaiveComplexBatchNorm1d(512))
         )
 
         for i in range(1, 5 - 1):
@@ -164,7 +153,7 @@ class Postnet(nn.Module):
                              kernel_size=5, stride=1,
                              padding=2,
                              dilation=1, w_init_gain='tanh'),
-                    nn.BatchNorm1d(512))
+                    NaiveComplexBatchNorm1d(512))
             )
 
         self.convolutions.append(
@@ -173,7 +162,7 @@ class Postnet(nn.Module):
                          kernel_size=5, stride=1,
                          padding=2,
                          dilation=1, w_init_gain='linear'),
-                nn.BatchNorm1d(80))
+                NaiveComplexBatchNorm1d(80))
             )
 
     def forward(self, x):
@@ -182,8 +171,7 @@ class Postnet(nn.Module):
 
         x = self.convolutions[-1](x)
 
-        return x    
-    
+        return x
 
 class Generator(nn.Module):
     """Generator network."""
@@ -211,19 +199,15 @@ class Generator(nn.Module):
                 
         mel_outputs_postnet = self.postnet(mel_outputs.transpose(2,1))
         mel_outputs_postnet = mel_outputs + mel_outputs_postnet.transpose(2,1)
-        
-        #mel_outputs = mel_outputs.unsqueeze(1)
-        #mel_outputs_postnet = mel_outputs_postnet.unsqueeze(1)
-        
-        return mel_outputs, mel_outputs_postnet, torch.cat(codes, dim=-1)
 
+        return mel_outputs, mel_outputs_postnet, torch.cat(codes, dim=-1)
 
 if __name__ == '__main__':
     import numpy as np
     from hparams import hparams as hp
 
-    x = torch.rand(8, 64, 80)
-    e = torch.rand(8, 256)
+    x = torch.rand(8, 64, 80, dtype=torch.cfloat)
+    e = torch.rand(8, 256, dtype=torch.cfloat)
 
     print('x:', x.shape)
     print('e:', e.shape)

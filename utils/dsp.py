@@ -1,5 +1,7 @@
 import numpy as np
 import librosa, math
+
+from numpy.lib.type_check import real
 from hparams import hparams as hp
 
 def load_wav(filename):
@@ -33,3 +35,24 @@ def melspectrogram(y):
 
 def stft(y):
     return librosa.stft(y=y, n_fft=hp.n_fft, hop_length=hp.hop_length, win_length=hp.win_length)
+
+def complex_linear_to_mel(spectrogram):
+    global mel_basis
+    if mel_basis is None:
+        mel_basis = build_mel_basis()
+    return np.dot(mel_basis, spectrogram.real) + 1j * np.dot(mel_basis, spectrogram.imag)
+
+def complex_amp_to_db(x):
+    real = 20 * np.log10(np.maximum(1e-5, x.real))
+    imag = 20 * np.log10(np.maximum(1e-5, x.imag))
+    return real + 1j * imag
+
+def complex_normalize(S):
+    real = np.clip((S.real - hp.min_level_db) / -hp.min_level_db, 0, 1)
+    imag = np.clip((S.imag - hp.min_level_db) / -hp.min_level_db, 0, 1)
+    return real + 1j * imag
+
+def complex_melspectrogram(y):
+    D = stft(y)
+    S = complex_amp_to_db(complex_linear_to_mel(D))
+    return complex_normalize(S)

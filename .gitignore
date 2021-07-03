@@ -1,0 +1,16 @@
+VCTK-Corpus
+checkpoints
+checkpoint_step001000000_ema.pth
+data
+data2
+data_*
+out
+
+.bash_history
+.python_history
+.cache
+
+.DS_Store
+.vscode
+
+__pycache__
