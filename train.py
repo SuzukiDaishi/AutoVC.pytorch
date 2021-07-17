@@ -7,10 +7,10 @@ import random
 import torch.optim as optim
 from model_vc import StyleEncoder
 # from model_vc import Generator
-from model_vc_complex import Generator
+from model_vc_stft import Generator
 from dataset import AudiobookDataset
-from dataset import train_collate, complex_train_collate
-from dataset import test_collate, complex_test_collate
+from dataset import train_collate, stft_train_collate
+from dataset import test_collate, stft_test_collate
 from utils.dsp import save_wav
 import numpy as np
 from hparams import hparams as hp
@@ -46,7 +46,7 @@ def train(args, model, device, train_loader, optimizer, epoch, sigma=1.0):
     for batch_idx, (m, e) in enumerate(train_loader):
         m = m.to(device)
         e = e.to(device)
-        
+    
         model.zero_grad()
 
         mel_outputs, mel_outputs_postnet, codes = model(m, e, e)
@@ -54,16 +54,10 @@ def train(args, model, device, train_loader, optimizer, epoch, sigma=1.0):
         m_rec = mel_outputs_postnet
         codes_rec = model(m_rec, e, None)
 
-        L_recon_r = ((mel_outputs_postnet.real - m.real) ** 2).sum(dim=(1,2)).mean()
-        L_recon0_r = ((mel_outputs.real - m.real) ** 2).sum(dim=(1,2)).mean()
-        L_content_r = torch.abs(codes.real - codes_rec.real).sum(dim=1).mean()
-        L_recon_i = ((mel_outputs_postnet.imag - m.imag) ** 2).sum(dim=(1,2)).mean()
-        L_recon0_i = ((mel_outputs.imag - m.imag) ** 2).sum(dim=(1,2)).mean()
-        L_content_i = torch.abs(codes.imag - codes_rec.imag).sum(dim=1).mean()
-        L_recon = (L_recon_r + L_recon_i) / 2
-        L_recon0 = (L_recon0_r + L_recon0_i) / 2
-        L_content = (L_content_r + L_content_i) / 2
-        
+        L_recon = ((mel_outputs_postnet - m) ** 2).sum(dim=(1,2)).mean()
+        L_recon0 = ((mel_outputs - m) ** 2).sum(dim=(1,2)).mean()
+        L_content = torch.abs(codes - codes_rec).sum(dim=1).mean()
+
         loss = L_recon + L_recon0 + L_content
 
         loss.backward()
@@ -95,15 +89,9 @@ def test(model, device, test_loader, checkpoint_dir, epoch, sigma=1.0):
             m_rec = mel_outputs_postnet
             codes_rec = model(m_rec, e, None)
 
-            L_recon_r = ((mel_outputs_postnet.real - m.real) ** 2).sum(dim=(1,2)).mean()
-            L_recon0_r = ((mel_outputs.real - m.real) ** 2).sum(dim=(1,2)).mean()
-            L_content_r = torch.abs(codes.real - codes_rec.real).sum(dim=1).mean()
-            L_recon_i = ((mel_outputs_postnet.imag - m.imag) ** 2).sum(dim=(1,2)).mean()
-            L_recon0_i = ((mel_outputs.imag - m.imag) ** 2).sum(dim=(1,2)).mean()
-            L_content_i = torch.abs(codes.imag - codes_rec.imag).sum(dim=1).mean()
-            L_recon = (L_recon_r + L_recon_i) / 2
-            L_recon0 = (L_recon0_r + L_recon0_i) / 2
-            L_content = (L_content_r + L_content_i) / 2
+            L_recon = ((mel_outputs_postnet - m) ** 2).sum(dim=(1,2)).mean()
+            L_recon0 = ((mel_outputs - m) ** 2).sum(dim=(1,2)).mean()
+            L_content = torch.abs(codes - codes_rec).sum(dim=1).mean()
 
             loss = L_recon + L_recon0 + L_content
 
@@ -152,12 +140,12 @@ if __name__ == '__main__':
 
     train_loader = torch.utils.data.DataLoader(
         AudiobookDataset(train_data),
-        collate_fn=complex_train_collate,
+        collate_fn=stft_train_collate,
         batch_size=args.batch_size, shuffle=True, **kwargs)
 
     test_loader = torch.utils.data.DataLoader(
         AudiobookDataset(test_data),
-        collate_fn=complex_test_collate,
+        collate_fn=stft_test_collate,
         batch_size=1, shuffle=False, **kwargs)
 
     model = Generator(hp.dim_neck, hp.dim_emb, hp.dim_pre, hp.freq).to(device)

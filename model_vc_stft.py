@@ -1,16 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from complex.complex_audio_pytorch import ComplexLinear, ComplexConv1d, NavieComplexLSTM, NaiveComplexBatchNorm1d
 
 
 class LinearNorm(torch.nn.Module):
-    def __init__(self, in_dim, out_dim, bias=True, w_init_gain='linear'):
+    def __init__(self, in_dim, out_dim, bias=True, w_init_gain='linear', axis=2):
         super(LinearNorm, self).__init__()
-        self.linear_layer = torch.nn.Linear(in_dim, out_dim, bias=bias)
-
-        #torch.nn.init.xavier_uniform_(
-        #    self.linear_layer.weight,
-        #    gain=torch.nn.init.calculate_gain(w_init_gain))
+        self.linear_layer = ComplexLinear(in_dim, out_dim, bias=bias, complex_axis=axis)
 
     def forward(self, x):
         return self.linear_layer(x)
@@ -18,19 +15,16 @@ class LinearNorm(torch.nn.Module):
 
 class ConvNorm(torch.nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=1, stride=1,
-                 padding=None, dilation=1, bias=True, w_init_gain='linear'):
+                 padding=None, dilation=1, bias=True, w_init_gain='linear', axis=2):
         super(ConvNorm, self).__init__()
         if padding is None:
             assert(kernel_size % 2 == 1)
             padding = int(dilation * (kernel_size - 1) / 2)
 
-        self.conv = torch.nn.Conv1d(in_channels, out_channels,
+        self.conv = ComplexConv1d(in_channels, out_channels,
                                     kernel_size=kernel_size, stride=stride,
                                     padding=padding, dilation=dilation,
-                                    bias=bias)
-
-        #torch.nn.init.xavier_uniform_(
-        #    self.conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
+                                    bias=bias, complex_axis=axis)
 
     def forward(self, signal):
         conv_signal = self.conv(signal)
@@ -65,16 +59,16 @@ class ContentEncoder(nn.Module):
         convolutions = []
         for i in range(3):
             conv_layer = nn.Sequential(
-                ConvNorm(80+dim_emb if i==0 else 512,
+                ConvNorm(513+dim_emb if i==0 else 512,
                          512,
                          kernel_size=5, stride=1,
                          padding=2,
                          dilation=1, w_init_gain='relu'),
-                nn.BatchNorm1d(512))
+                NaiveComplexBatchNorm1d(512, complex_axis=2))
             convolutions.append(conv_layer)
         self.convolutions = nn.ModuleList(convolutions)
         
-        self.lstm = nn.LSTM(512, dim_neck, 2, batch_first=True, bidirectional=True)
+        self.lstm = NavieComplexLSTM(512, dim_neck, 2, batch_first=True, bidirectional=True, complex_axis=1)
 
     def forward(self, x, c_org):
         x = x.squeeze(1).transpose(2,1)
@@ -84,8 +78,6 @@ class ContentEncoder(nn.Module):
         for conv in self.convolutions:
             x = F.relu(conv(x))
         x = x.transpose(1, 2)
-
-        print('test', x.shape)
         
         self.lstm.flatten_parameters()
         outputs, _ = self.lstm(x)
@@ -105,8 +97,8 @@ class Decoder(nn.Module):
     def __init__(self, dim_neck, dim_emb, dim_pre):
         super(Decoder, self).__init__()
         
-        self.lstm1 = nn.LSTM(dim_neck*2+dim_emb, dim_pre, 1, batch_first=True)
-        
+        self.lstm1 = NavieComplexLSTM(dim_neck*2+dim_emb, dim_pre, 1, batch_first=True, complex_axis=1)
+
         convolutions = []
         for i in range(3):
             conv_layer = nn.Sequential(
@@ -115,13 +107,13 @@ class Decoder(nn.Module):
                          kernel_size=5, stride=1,
                          padding=2,
                          dilation=1, w_init_gain='relu'),
-                nn.BatchNorm1d(dim_pre))
+                NaiveComplexBatchNorm1d(dim_pre, complex_axis=2))
             convolutions.append(conv_layer)
         self.convolutions = nn.ModuleList(convolutions)
         
-        self.lstm2 = nn.LSTM(dim_pre, 1024, 2, batch_first=True)
+        self.lstm2 = NavieComplexLSTM(dim_pre, 1024, 2, batch_first=True, complex_axis=1)
         
-        self.linear_projection = LinearNorm(1024, 80)
+        self.linear_projection = LinearNorm(1024, 513, axis=1)
 
     def forward(self, x):
         
@@ -151,11 +143,11 @@ class Postnet(nn.Module):
 
         self.convolutions.append(
             nn.Sequential(
-                ConvNorm(80, 512,
+                ConvNorm(513, 512,
                          kernel_size=5, stride=1,
                          padding=2,
-                         dilation=1, w_init_gain='tanh'),
-                nn.BatchNorm1d(512))
+                         dilation=1, w_init_gain='tanh', axis=2),
+                NaiveComplexBatchNorm1d(512, complex_axis=2))
         )
 
         for i in range(1, 5 - 1):
@@ -165,17 +157,17 @@ class Postnet(nn.Module):
                              512,
                              kernel_size=5, stride=1,
                              padding=2,
-                             dilation=1, w_init_gain='tanh'),
-                    nn.BatchNorm1d(512))
+                             dilation=1, w_init_gain='tanh', axis=2),
+                    NaiveComplexBatchNorm1d(512, complex_axis=2))
             )
 
         self.convolutions.append(
             nn.Sequential(
-                ConvNorm(512, 80,
+                ConvNorm(512, 513,
                          kernel_size=5, stride=1,
                          padding=2,
-                         dilation=1, w_init_gain='linear'),
-                nn.BatchNorm1d(80))
+                         dilation=1, w_init_gain='linear', axis=2),
+                NaiveComplexBatchNorm1d(513, complex_axis=2))
             )
 
     def forward(self, x):
@@ -222,18 +214,23 @@ class Generator(nn.Module):
 
 if __name__ == '__main__':
     import numpy as np
+    import time
     from hparams import hparams as hp
 
-    x = torch.rand(8, 64, 80)
+    x = torch.rand(8, 64*2, 513)
     e = torch.rand(8, 256)
+    di = torch.rand(8, 128, 320)
+    pi = torch.rand(8, 513, 128)
 
     print('x:', x.shape)
     print('e:', e.shape)
 
     model = Generator(hp.dim_neck, hp.dim_emb, hp.dim_pre, hp.freq)
-    print(model)
+    # print(model)
 
+    t = time.time()
     out = model(x, e, e)
+    print(time.time()-t)
 
     for out in out:
         print(out.shape)

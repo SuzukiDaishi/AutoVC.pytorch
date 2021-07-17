@@ -9,6 +9,9 @@ class hparams:
     fmax = 7600
     min_level_db = -100
     ref_level_db = 20
+
+    stft_real_min = -262.1074
+    stft_real_max = 285.0463
     
     seq_len_factor = 64
     bits = 12

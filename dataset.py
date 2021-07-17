@@ -2,6 +2,7 @@ import os
 import math
 import random
 import json
+from librosa.filters import mel
 import torch
 import torch.utils.data
 import numpy as np
@@ -9,7 +10,7 @@ from spec_augment import spec_augment
 
 from hparams import hparams as hp
 from utils.dsp import load_wav
-from utils.dsp import melspectrogram, complex_melspectrogram
+from utils.dsp import melspectrogram, complex_melspectrogram, complex_stft
 
 class AudiobookDataset(torch.utils.data.Dataset):
     def __init__(self, input_data, train=False):
@@ -52,7 +53,7 @@ def train_collate(batch):
     wav = [w * 2 ** (np.random.rand() * 2 - 1) for w in wav]
     
     mels = [melspectrogram(w[:-1]) for w in wav]
-    
+
     # spec augmentation
     mels = [spec_augment(m) for m in mels]
     
@@ -88,26 +89,22 @@ def test_collate(batch):
     return mels, embs
 
 def complex_train_collate(batch):
-    mel_win = hp.seq_len // hp.hop_length
     max_offsets = [x[0].shape[-1] - hp.seq_len + 1 for x in batch]
     sig_offsets = [np.random.randint(0, offset) for offset in max_offsets]
     wav = [x[0][sig_offsets[i]:sig_offsets[i] + hp.seq_len] \
               for i, x in enumerate(batch)]
+    # volume augmentation
     wav = [w * 2 ** (np.random.rand() * 2 - 1) for w in wav]
     mels = [complex_melspectrogram(w[:-1]) for w in wav]
-    mels_real = [spec_augment(m.real) for m in mels]
-    mels_imag = [spec_augment(m.imag) for m in mels]
-    mels = [ mr + 1j * mi for mr, mi in zip(mels_real, mels_imag) ]
-
-    emb = [x[1] + 1j * x[1] for x in batch]
-    fname = [x[2] for x in batch]
-
-    mels = torch.tensor(mels, dtype=torch.cfloat)
-    embs = torch.tensor(emb, dtype=torch.cfloat)
-
-    mels = mels.transpose(2,1)
-
-    return mels, embs
+    # spec augmentation
+    mels_r = [spec_augment(m[0]) for m in mels]
+    mels_i = [spec_augment(m[1]) for m in mels]
+    mels = [ np.array([mr, mi]) for mr, mi in zip(mels_r, mels_i)]
+    emb = [x[1] for x in batch]
+    mels = torch.FloatTensor(mels)
+    emb = torch.FloatTensor(emb)
+    mels = mels.transpose(3,2)
+    return mels, emb
 
 def complex_test_collate(batch):
     wavs = []
@@ -120,15 +117,52 @@ def complex_test_collate(batch):
                 wav_seq = np.pad(wav_seq, (0, hp.seq_len - len(wav_seq)), mode='constant')
             wavs.append(wav_seq)
             embs.append(b[1])
-    
-    mels = [ pad_seq(complex_melspectrogram(w))[0] for w in wavs ]
-    embs = [ e + 1j * e for e in embs ]
+    mels = [complex_melspectrogram(w) for w in wavs]
+    mels_r = [pad_seq(m[0])[0] for m in mels ]
+    mels_i = [pad_seq(m[1])[0] for m in mels ]
+    mels = [ np.array([mr, mi]) for mr, mi in zip(mels_r, mels_i)]
+    mels = torch.FloatTensor(mels)
+    embs = torch.FloatTensor(embs)
+    mels = mels.transpose(3,2)
+    return mels, embs
 
-    mels = torch.tensor(mels, dtype=torch.cfloat)
-    embs = torch.tensor(embs, dtype=torch.cfloat)
-    
+def stft_train_collate(batch, use_spec_aug=True):
+    max_offsets = [x[0].shape[-1] - hp.seq_len + 1 for x in batch]
+    sig_offsets = [np.random.randint(0, offset) for offset in max_offsets]
+    wav = [x[0][sig_offsets[i]:sig_offsets[i] + hp.seq_len] \
+              for i, x in enumerate(batch)]
+    # volume augmentation
+    wav = [w * 2 ** (np.random.rand() * 2 - 1) for w in wav]
+    mels = [complex_stft(w[:-1]) for w in wav]
+    # spec augmentation
+    if use_spec_aug:
+        mels_r = [spec_augment(m[0]) for m in mels]
+        mels_i = [spec_augment(m[1]) for m in mels]
+        mels = [ np.concatenate([mr, mi], axis=1) for mr, mi in zip(mels_r, mels_i)]
+    emb = [x[1] for x in batch]
+    mels = torch.FloatTensor(mels)
+    emb = torch.FloatTensor(emb)
     mels = mels.transpose(2,1)
-    
+    return mels, emb
+
+def stft_test_collate(batch):
+    wavs = []
+    embs = []
+    for b in batch:
+        wav = b[0]
+        for p in range(0, len(wav), hp.seq_len):
+            wav_seq = wav[p:p+hp.seq_len]
+            if len(wav_seq) < hp.seq_len:
+                wav_seq = np.pad(wav_seq, (0, hp.seq_len - len(wav_seq)), mode='constant')
+            wavs.append(wav_seq)
+            embs.append(b[1])
+    mels = [complex_stft(w) for w in wavs]
+    mels_r = [pad_seq(m[0])[0] for m in mels ]
+    mels_i = [pad_seq(m[1])[0] for m in mels ]
+    mels = [ np.stack([mr, mi], axis=1) for mr, mi in zip(mels_r, mels_i)]
+    mels = torch.FloatTensor(mels)
+    embs = torch.FloatTensor(embs)
+    mels = mels.transpose(3,2)
     return mels, embs
 
 if __name__ == '__main__':
@@ -143,8 +177,16 @@ if __name__ == '__main__':
 
     train_loader = torch.utils.data.DataLoader(
         AudiobookDataset(train_data),
-        collate_fn=complex_train_collate,
+        collate_fn=stft_train_collate,
         batch_size=8, shuffle=True)
     
-    for m, e in train_loader:
+    max_ = -1000
+    min_ = 1000
+    len_ = len(train_loader)
+
+    for i, (m, e) in enumerate(train_loader):
+        print(f'\n{i}/{len_}')
         print(m.shape, e.shape, m.dtype, e.dtype)
+        print(m.max(), m.min(), m.mean())
+        max_ = max(m.max(), max_)
+        min_ = min(m.min(), min_)
