@@ -159,10 +159,10 @@ def stft_test_collate(batch):
     mels = [complex_stft(w) for w in wavs]
     mels_r = [pad_seq(m[0])[0] for m in mels ]
     mels_i = [pad_seq(m[1])[0] for m in mels ]
-    mels = [ np.stack([mr, mi], axis=1) for mr, mi in zip(mels_r, mels_i)]
+    mels = [ np.concatenate([mr, mi], axis=1) for mr, mi in zip(mels_r, mels_i)]
     mels = torch.FloatTensor(mels)
     embs = torch.FloatTensor(embs)
-    mels = mels.transpose(3,2)
+    mels = mels.transpose(2,1)
     return mels, embs
 
 if __name__ == '__main__':
@@ -176,8 +176,8 @@ if __name__ == '__main__':
         test_data = json.load(f)
 
     train_loader = torch.utils.data.DataLoader(
-        AudiobookDataset(train_data),
-        collate_fn=stft_train_collate,
+        AudiobookDataset(test_data),
+        collate_fn=stft_test_collate,
         batch_size=8, shuffle=True)
     
     max_ = -1000
