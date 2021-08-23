@@ -32,4 +32,29 @@ def melspectrogram(y):
     return normalize(S)
 
 def stft(y):
-    return librosa.stft(y=y, n_fft=hp.n_fft, hop_length=hp.hop_length, win_length=hp.win_length)
+    return librosa.stft(y, n_fft=hp.n_fft, hop_length=hp.hop_length, win_length=hp.win_length)
+
+def istft(y, wave_length):
+    return librosa.istft(y, hop_length=hp.hop_length, win_length=hp.win_length, length=wave_length)
+
+def split_complex(x):
+    return np.array([x.real, x.imag])
+
+def join_complex(x):
+    return x[0].astype(np.complex64) + (1j * x[1].astype(np.complex64))
+
+def stft_normalize(S):
+    return np.clip(S / np.maximum(hp.stft_real_max, hp.stft_real_min), -1, 1)
+
+def stft_unnormalize(S):
+    return S * np.maximum(hp.stft_real_max, hp.stft_real_min)
+
+def complex_stft(y):
+    D = stft(y)
+    S = split_complex(D)
+    return stft_normalize(S)
+
+def complex_istft(y, wave_length):
+    S = stft_unnormalize(y)
+    D = join_complex(S)
+    return istft(D, wave_length=wave_length)
