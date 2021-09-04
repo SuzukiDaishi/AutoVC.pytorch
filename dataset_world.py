@@ -3,13 +3,14 @@ import math
 import random
 import json
 import torch
+from torch._C import wait
 import torch.utils.data
 import numpy as np
 from spec_augment import spec_augment
 
 from hparams import hparams as hp
 from utils.dsp import load_wav
-from utils.dsp import melspectrogram
+from utils.world import world_split, logsp_norm
 
 class AudiobookDataset(torch.utils.data.Dataset):
     def __init__(self, input_data, train=False):
@@ -38,54 +39,33 @@ def pad_seq(x, base=32):
     assert len_pad >= 0
     return np.pad(x, ((0,0), (0,len_pad)), 'constant'), len_pad
 
-def train_collate(batch):
-    mel_win = hp.seq_len // hp.hop_length
+def train_collate_world(batch):
     
-    max_offsets = [x[0].shape[-1] - hp.seq_len + 1 for x in batch]
+    indexs = [ np.random.randint(0, b[0].shape[0] - (256*20)) for b in batch ]
+    wavs = [ b[0][indexs[i]:(256*20-1)+indexs[i]] for i, b in enumerate(batch) ]
+    wavs = [w * 2 ** (np.random.rand() * 2 - 1) for w in wavs]
+    embs = [ b[1] for b in batch ]
 
-    sig_offsets = [np.random.randint(0, offset) for offset in max_offsets]
+    mels = np.array([ logsp_norm(np.log(world_split(w, use_ap=False)[-1])) for w in wavs ])
+    embs = np.array(embs)
 
-    wav = [x[0][sig_offsets[i]:sig_offsets[i] + hp.seq_len] \
-              for i, x in enumerate(batch)]
-    
-    # volume augmentation
-    wav = [w * 2 ** (np.random.rand() * 2 - 1) for w in wav]
-    
-    mels = [melspectrogram(w[:-1]) for w in wav]
-    
-    # spec augmentation
-    mels = [spec_augment(m) for m in mels]
-    
-    emb = [x[1] for x in batch]
-    fname = [x[2] for x in batch]
+    mels = torch.from_numpy(mels.astype(np.float32)).clone()
+    embs = torch.from_numpy(embs.astype(np.float32)).clone()
 
-    mels = torch.FloatTensor(mels)
-    emb = torch.FloatTensor(emb)
-
-    mels = mels.transpose(2,1)
-
-    return mels, emb
-
-def test_collate(batch):
-    wavs = []
-    embs = []
-    for b in batch:
-        wav = b[0]
-        for p in range(0, len(wav), hp.seq_len):
-            wav_seq = wav[p:p+hp.seq_len]
-            if len(wav_seq) < hp.seq_len:
-                wav_seq = np.pad(wav_seq, (0, hp.seq_len - len(wav_seq)), mode='constant')
-            wavs.append(wav_seq)
-            embs.append(b[1])
-    
-    mels = [pad_seq(melspectrogram(w))[0] for w in wavs]
-
-    mels = torch.FloatTensor(mels)
-    embs = torch.FloatTensor(embs)
-    
-    mels = mels.transpose(2,1)
-    
     return mels, embs
+
+def test_collate_world(batch):
+    wavs = [ b[0][:(256*20-1)] for b in batch ]
+    embs = [ b[1] for b in batch ]
+
+    mels = np.array([ logsp_norm(np.log(world_split(w, use_ap=False)[-1])) for w in wavs ])
+    embs = np.array(embs)
+
+    mels = torch.from_numpy(mels.astype(np.float32)).clone()
+    embs = torch.from_numpy(embs.astype(np.float32)).clone()
+
+    return mels, embs
+    
 
 if __name__ == '__main__':
     data_path = './data'
@@ -98,7 +78,7 @@ if __name__ == '__main__':
 
     train_loader = torch.utils.data.DataLoader(
         AudiobookDataset(train_data),
-        collate_fn=train_collate,
+        collate_fn=test_collate_world,
         batch_size=8, shuffle=True)
     
     max_ = -1000
