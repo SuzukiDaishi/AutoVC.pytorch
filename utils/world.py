@@ -6,6 +6,9 @@ from hparams import hparams as hp
 def logsp_norm(sp):
     return np.clip((sp - hp.sp_min) / (hp.sp_max - hp.sp_min), 0, 1)
 
+def logsp_unnorm(nsp):
+    return nsp * (hp.sp_max - hp.sp_min) + hp.sp_min
+
 def world_split(wav, use_ap=True):
     wav = wav.astype(np.float64)
     f0, t = pw.harvest(wav, hp.sample_rate)
@@ -16,5 +19,5 @@ def world_split(wav, use_ap=True):
     else:
         return f0, t, sp
 
-def world_join(f0, sp, ap, sr) :
-    return pw.synthesize(f0, sp, ap, sr)
+def world_join(f0, sp, ap) :
+    return pw.synthesize(f0, sp, ap, hp.sample_rate)

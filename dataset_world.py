@@ -58,6 +58,8 @@ def test_collate_world(batch):
     wavs = [ b[0][:(256*20-1)] for b in batch ]
     embs = [ b[1] for b in batch ]
 
+    del batch
+
     mels = np.array([ logsp_norm(np.log(world_split(w, use_ap=False)[-1])) for w in wavs ])
     embs = np.array(embs)
 
