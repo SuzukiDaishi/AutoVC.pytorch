@@ -4,7 +4,7 @@ import argparse
 import torch
 import random
 import torch.optim as optim
-from model_vc_worldx2 import Generator
+from model_vc_world import Generator
 from dataset_world import AudiobookDataset
 from dataset_world import train_collate_world, test_collate_world
 from utils.dsp import save_wav
