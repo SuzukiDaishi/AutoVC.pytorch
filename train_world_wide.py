@@ -144,7 +144,7 @@ if __name__ == '__main__':
         collate_fn=test_collate_world,
         batch_size=1, shuffle=False, **kwargs)
 
-    model = Generator(hp.dim_neck, hp.dim_emb, hp.dim_pre, hp.freq).to(device)
+    model = Generator(hp.dim_neck * 2, hp.dim_emb, hp.dim_pre * 2, hp.freq // 2).to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
     current_epoch = 0
